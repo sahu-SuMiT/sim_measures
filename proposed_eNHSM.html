@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Interactive Model Comparison Dashboard</title>
+<style>
+    body {
+        background-color: #121212;
+        color: #ffffff;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+    .dashboard-wrapper {
+        background-color: #1e1e1e;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+    .controls {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 40px;
+        justify-content: center;
+        align-items: center;
+        background-color: #2a2a2a;
+        padding: 15px 30px;
+        border-radius: 8px;
+    }
+    .control-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    label {
+        font-size: 14px;
+        color: #aaa;
+        font-weight: 600;
+    }
+    select {
+        background-color: #333;
+        color: #fff;
+        border: 1px solid #555;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+        outline: none;
+    }
+    select:focus {
+        border-color: #90ee90;
+    }
+    .chart-container {
+        display: flex;
+        width: 800px;
+        height: 350px;
+        padding: 40px 20px 40px 20px;
+        position: relative;
+    }
+    .y-axis {
+        width: 150px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-around;
+        text-align: right;
+        padding-right: 20px;
+        z-index: 10;
+    }
+    .model-name {
+        font-size: 14px;
+        color: #e0e0e0;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        transition: color 0.3s;
+    }
+    .model-name.active-baseline {
+        color: #90ee90;
+        font-weight: bold;
+    }
+    .chart-area {
+        flex: 1;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-around;
+    }
+    .grid-line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        border-left: 1px solid #333;
+        z-index: 1;
+    }
+    .grid-line.baseline {
+        border-left: 2px solid #fff;
+        z-index: 2;
+    }
+    .x-label {
+        position: absolute;
+        bottom: -30px;
+        transform: translateX(-50%);
+        color: #aaa;
+        font-size: 14px;
+    }
+    .top-baseline-label {
+        position: absolute;
+        top: -25px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-weight: 700;
+        font-size: 14px;
+        color: #fff;
+    }
+    .bar-track {
+        position: relative;
+        height: 40px;
+        width: 100%;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+    }
+    .bar {
+        position: absolute;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+        transition: all 0.5s ease-out;
+    }
+    /* Styles for positive improvements (Right side) */
+    .bar.positive {
+        left: 50%;
+        background-color: #90ee90;
+        border-radius: 0 4px 4px 0;
+    }
+    .bar.positive .bar-value {
+        right: -10px;
+        transform: translateX(100%);
+    }
+    /* Styles for negative improvements (Left side) */
+    .bar.negative {
+        right: 50%;
+        background-color: #ff6b6b;
+        border-radius: 4px 0 0 4px;
+    }
+    .bar.negative .bar-value {
+        left: -10px;
+        transform: translateX(-100%);
+    }
+    /* Baseline marker (when comparing to itself) */
+    .bar.neutral {
+        left: 50%;
+        width: 4px !important;
+        background-color: #fff;
+        transform: translateX(-50%);
+    }
+    .bar.neutral .bar-value {
+        display: none;
+    }
+    .bar-value {
+        position: absolute;
+        font-weight: bold;
+        font-size: 13px;
+        color: #fff;
+        text-shadow: 1px 1px 2px #000, -1px -1px 2px #000, 1px -1px 2px #000, -1px 1px 2px #000;
+        white-space: nowrap;
+    }
+    .x-axis-title {
+        position: absolute;
+        bottom: -10px;
+        right: 20px;
+        color: #aaa;
+        font-size: 13px;
+        font-style: italic;
+    }
+</style>
+</head>
+<body>
+
+<div class="dashboard-wrapper">
+    <div class="controls">
+        <div class="control-group">
+            <label for="metricSelect">Metric:</label>
+            <select id="metricSelect">
+                <option value="mae">MAE (Error)</option>
+                <option value="rmse">RMSE (Error)</option>
+                <option value="precision">Precision</option>
+                <option value="recall">Recall</option>
+                <option value="f1" selected>F1 Score</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="baselineSelect">Baseline Model:</label>
+            <select id="baselineSelect">
+                <option value="nhsm" selected>NHSM (Base)</option>
+                <option value="os_similarity">os_similarity</option>
+                <option value="i_nhsm">i_nhsm</option>
+                <option value="e_nhsm_logistic">e_nhsm_logistic</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <div class="y-axis">
+            <div class="model-name" id="label_nhsm">NHSM</div>
+            <div class="model-name" id="label_os_similarity">os_similarity</div>
+            <div class="model-name" id="label_i_nhsm">i_nhsm</div>
+            <div class="model-name" id="label_e_nhsm_logistic">e_nhsm_logistic</div>
+        </div>
+
+        <div class="chart-area">
+            <div class="top-baseline-label">BASELINE</div>
+
+            <div class="grid-line" style="left: 0%;"><span class="x-label">-50%</span></div>
+            <div class="grid-line" style="left: 25%;"><span class="x-label">-25%</span></div>
+            <div class="grid-line baseline" style="left: 50%;"><span class="x-label" style="color:#fff;">0%</span></div>
+            <div class="grid-line" style="left: 75%;"><span class="x-label">25%</span></div>
+            <div class="grid-line" style="left: 100%;"><span class="x-label">50%</span></div>
+
+            <div class="bar-track"><div class="bar" id="bar_nhsm"><span class="bar-value"></span></div></div>
+            <div class="bar-track"><div class="bar" id="bar_os_similarity"><span class="bar-value"></span></div></div>
+            <div class="bar-track"><div class="bar" id="bar_i_nhsm"><span class="bar-value"></span></div></div>
+            <div class="bar-track"><div class="bar" id="bar_e_nhsm_logistic"><span class="bar-value"></span></div></div>
+        </div>
+        
+        <div class="x-axis-title">% Improvement vs Baseline</div>
+    </div>
+</div>
+
+<script>
+    // Exact raw data provided
+    const modelData = {
+        nhsm: { mae: 0.6823, rmse: 0.8738, precision: 0.8378, recall: 0.3049, f1: 0.4471 },
+        os_similarity: { mae: 0.6824, rmse: 0.8782, precision: 0.8228, recall: 0.3305, f1: 0.4716 },
+        i_nhsm: { mae: 0.6654, rmse: 0.8593, precision: 0.8311, recall: 0.3671, f1: 0.5093 },
+        e_nhsm_logistic: { mae: 0.6546, rmse: 0.8517, precision: 0.8189, recall: 0.4315, f1: 0.5652 }
+    };
+
+    const models = ['nhsm', 'os_similarity', 'i_nhsm', 'e_nhsm_logistic'];
+    
+    // Defines whether a lower metric value means an improvement
+    const lowerIsBetter = {
+        mae: true,
+        rmse: true,
+        precision: false,
+        recall: false,
+        f1: false
+    };
+
+    // DOM Elements
+    const metricSelect = document.getElementById('metricSelect');
+    const baselineSelect = document.getElementById('baselineSelect');
+
+    function calculateImprovement(baseValue, targetValue, metric) {
+        if (baseValue === targetValue) return 0;
+        
+        let improvement;
+        if (lowerIsBetter[metric]) {
+            // Error metrics: (Base - Target) / Base
+            improvement = ((baseValue - targetValue) / baseValue) * 100;
+        } else {
+            // Quality metrics: (Target - Base) / Base
+            improvement = ((targetValue - baseValue) / baseValue) * 100;
+        }
+        return improvement;
+    }
+
+    function updateChart() {
+        const selectedMetric = metricSelect.value;
+        const selectedBaseline = baselineSelect.value;
+        const baselineValue = modelData[selectedBaseline][selectedMetric];
+
+        models.forEach(model => {
+            const labelEl = document.getElementById(`label_${model}`);
+            const barEl = document.getElementById(`bar_${model}`);
+            const valEl = barEl.querySelector('.bar-value');
+            
+            const targetValue = modelData[model][selectedMetric];
+            const improvement = calculateImprovement(baselineValue, targetValue, selectedMetric);
+            
+            // Handle Baseline styling highlighting
+            if (model === selectedBaseline) {
+                labelEl.classList.add('active-baseline');
+                barEl.className = 'bar neutral';
+                barEl.style.width = '0%';
+                valEl.textContent = '';
+                return;
+            } else {
+                labelEl.classList.remove('active-baseline');
+            }
+
+            // Calculate width mapping. Scale is -50 to +50.
+            // Half the container is 50%, so 1% improvement = 1% chart width.
+            const absImprovement = Math.abs(improvement);
+            // Cap width visually at 50% so it doesn't overflow the box, though highest is 41.5%
+            const displayWidth = Math.min(absImprovement, 50); 
+            
+            barEl.style.width = `${displayWidth}%`;
+
+            if (improvement > 0) {
+                barEl.className = 'bar positive';
+                valEl.textContent = `+${improvement.toFixed(2)}%`;
+            } else if (improvement < 0) {
+                barEl.className = 'bar negative';
+                valEl.textContent = `${improvement.toFixed(2)}%`;
+            } else {
+                barEl.className = 'bar neutral';
+                valEl.textContent = '0%';
+            }
+        });
+    }
+
+    // Event Listeners
+    metricSelect.addEventListener('change', updateChart);
+    baselineSelect.addEventListener('change', updateChart);
+
+    // Initial Render
+    updateChart();
+
+</script>
+
+</body>
+</html>
